@@ -1,0 +1,62 @@
+name: Flutter Init
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  init:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.4'
+          channel: 'stable'
+
+      - name: Create Flutter project
+        run: |
+          flutter create --project-name ${{ github.event.inputs.app_name }} --platforms web .
+
+      - name: Commit generated files
+        run: |
+          git config user.name "FlutterForge"
+          git config user.email "noreply@flutterforge.dev"
+          git add -A
+          git commit -m "FlutterForge: Initialize Flutter project" || echo "No changes"
+          git push
+
+      - name: Build web
+        run: |
+          flutter build web --release --base-href /${{ github.event.repository.name }}/
+
+      - name: Add 404.html for SPA routing
+        run: cp build/web/index.html build/web/404.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
